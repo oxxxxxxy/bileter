@@ -31,7 +31,7 @@ export function buildDisplayHall(seats: SeatItem[]): SeatRow[] {
         label,
         seats: sortedSeats.map((seat) => ({
           ...seat,
-          display_label: displayLabels.get(seat.seat_label) ?? '',
+          display_label: displayLabels.get(seat.seat_label)!,
         })),
       };
     });
@@ -69,7 +69,7 @@ export function buildHallPreview(rowsValue: string, seatsValue: string, inactive
       label: rowLabel,
       seats: seats.map((seat) => ({
         ...seat,
-        displayLabel: displayLabels.get(seat.label) ?? '',
+        displayLabel: displayLabels.get(seat.label)!,
       })),
     };
   });

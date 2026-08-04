@@ -1,5 +1,8 @@
 # WebExeStarter
 
+[![CI](https://github.com/oxxxxxxy/bileter/actions/workflows/ci.yml/badge.svg)](https://github.com/oxxxxxxy/bileter/actions/workflows/ci.yml)
+[![Windows Build](https://github.com/oxxxxxxy/bileter/actions/workflows/windows-build.yml/badge.svg)](https://github.com/oxxxxxxy/bileter/actions/workflows/windows-build.yml)
+
 Приложение для продажи билетов:
 
 - `server` - FastAPI backend
@@ -27,5 +30,13 @@
 
 ## Документация
 
-- сборка на Windows: [`README_BUILD_WINDOWS.md`](/home/pyot/RiderProjects/WebExeStarter/README_BUILD_WINDOWS.md)
-- передача готовой программы другому человеку: [`README_DISTRIBUTION_WINDOWS.md`](/home/pyot/RiderProjects/WebExeStarter/README_DISTRIBUTION_WINDOWS.md)
+- сборка на Windows: [README_BUILD_WINDOWS.md](README_BUILD_WINDOWS.md)
+- передача готовой программы другому человеку: [README_DISTRIBUTION_WINDOWS.md](README_DISTRIBUTION_WINDOWS.md)
+
+## Проверки и релизы
+
+- `python -m pytest` проверяет Python-логику и требует 100% покрытия выделенного ядра.
+- `cd interface && npm test` проверяет TypeScript-утилиты с порогом 100%.
+- `cd interface && npm run build` проверяет типы и собирает интерфейс.
+- Каждый push и pull request запускает тесты и собирает Windows `.exe` как artifact.
+- Тег вида `v1.0.0` создаёт GitHub Release и прикладывает `WebExeStarter.exe`.

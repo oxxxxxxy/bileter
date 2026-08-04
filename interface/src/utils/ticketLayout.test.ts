@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FALLBACK_TICKET_LAYOUT } from '../constants';
+import type { TicketLayout } from '../types';
 import { cloneTicketLayout, layoutFromApi, priceDraftsFromTemplate, priceTemplateFromDrafts, ticketLayoutToJson, updateTicketLayoutValue } from './ticketLayout';
 
 describe('ticket layout utils', () => {
@@ -11,6 +12,7 @@ describe('ticket layout utils', () => {
 
     const updatedAlign = updateTicketLayoutValue(updatedX, 'seat', 'align', 'center');
     expect(updatedAlign.seat.align).toBe('center');
+    expect(updateTicketLayoutValue(updatedAlign, 'row', 'size', '').row.size).toBe(0);
   });
 
   it('converts price drafts to templates and back', () => {
@@ -18,10 +20,12 @@ describe('ticket layout utils', () => {
       { label: ' Полная ', amount: '200' },
       { label: '', amount: '100' },
       { label: 'Льготная', amount: '100' },
+      { label: 'Бесплатно', amount: '' },
     ]);
     expect(templates).toEqual([
       { label: 'Полная', amount: 200, sort_order: 0 },
       { label: 'Льготная', amount: 100, sort_order: 1 },
+      { label: 'Бесплатно', amount: 0, sort_order: 2 },
     ]);
 
     expect(priceDraftsFromTemplate([
@@ -41,5 +45,23 @@ describe('ticket layout utils', () => {
     });
     expect(normalized.row.align).toBe('center');
     expect(JSON.parse(ticketLayoutToJson(normalized)).seat.size).toBe(9);
+  });
+
+  it('uses every fallback for an absent API layout', () => {
+    expect(layoutFromApi(undefined)).toEqual(FALLBACK_TICKET_LAYOUT);
+    expect(layoutFromApi(null)).toEqual(FALLBACK_TICKET_LAYOUT);
+  });
+
+  it('normalizes empty layout values before serialization', () => {
+    const emptyValues = {
+      price: { x: 0, y: 0, size: 0, align: '' },
+      row: { x: 0, y: 0, size: 0, align: '' },
+      seat: { x: 0, y: 0, size: 0, align: '' },
+    } as unknown as TicketLayout;
+    expect(JSON.parse(ticketLayoutToJson(emptyValues))).toEqual({
+      price: { x: 0, y: 0, size: 0, align: 'left' },
+      row: { x: 0, y: 0, size: 0, align: 'left' },
+      seat: { x: 0, y: 0, size: 0, align: 'left' },
+    });
   });
 });

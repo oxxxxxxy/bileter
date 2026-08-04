@@ -14,6 +14,9 @@ interface/coverage/
 interface/*.tsbuildinfo
 interface/vite.config.js
 interface/vite.config.d.ts
+.coverage
+coverage.xml
+htmlcov/
 .idea/
 .vscode/
 *.sqlite
