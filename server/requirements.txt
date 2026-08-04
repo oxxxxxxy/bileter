@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pillow
+python-multipart
+pystray; platform_system == "Windows"
+pywin32; platform_system == "Windows"
