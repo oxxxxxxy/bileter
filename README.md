@@ -40,3 +40,15 @@
 - `cd interface && npm run build` проверяет типы и собирает интерфейс.
 - Каждый push и pull request запускает тесты и собирает Windows `.exe` как artifact.
 - Тег вида `v1.0.0` создаёт GitHub Release и прикладывает `WebExeStarter.exe`.
+
+Готовую сборку после обычного push можно скачать на странице запущенного workflow:
+`Actions` → последний `CI` → `Artifacts` → `bileter-windows-<commit>`. Внутри artifact находится готовый `WebExeStarter.exe`.
+
+Для прямой раздачи `.exe` без исходников создай тег:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Workflow `Windows Build` создаст GitHub Release и приложит готовый `WebExeStarter.exe` отдельным файлом.
