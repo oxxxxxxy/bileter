@@ -3,6 +3,8 @@ name: Windows Build
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -11,14 +13,25 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows executable
+    name: Build Windows executable (${{ matrix.arch }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            name: WebExeStarter-x86
+            python-arch: x86
+          - arch: x64
+            name: WebExeStarter-x64
+            python-arch: x64
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          architecture: ${{ matrix.python-arch }}
           cache: pip
           cache-dependency-path: |
             server/requirements.txt
@@ -31,18 +44,38 @@ jobs:
 
       - name: Build executable
         shell: powershell
-        run: .\build_windows.ps1
+        run: .\build_windows.ps1 -Name "${{ matrix.name }}" -Arch "${{ matrix.arch }}"
 
-      - name: Upload artifact
+      - name: Create convenience binary aliases
+        shell: powershell
+        run: |
+          Copy-Item "dist\${{ matrix.name }}.exe" "dist\Билеты-${{ matrix.arch }}.exe"
+
+      - name: Upload artifact (${{ matrix.name }})
         uses: actions/upload-artifact@v4
         with:
-          name: WebExeStarter-windows
-          path: dist/WebExeStarter.exe
+          name: ${{ matrix.name }}
+          path: |
+            dist/${{ matrix.name }}.exe
+            dist/Билеты-${{ matrix.arch }}.exe
           if-no-files-found: error
 
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+  publish-release:
+    name: Publish tagged release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/WebExeStarter.exe
+          files: release-assets/*.exe
           generate_release_notes: true

@@ -3,7 +3,9 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import platform
 import socket
+import struct
 import sys
 import tempfile
 import threading
@@ -22,6 +24,30 @@ HOST = "127.0.0.1"
 PORT = 8000
 BASE_URL = f"http://{HOST}:{PORT}"
 HEALTH_URL = f"{BASE_URL}/api/health"
+
+
+def _setup_port() -> None:
+    global PORT, BASE_URL, HEALTH_URL
+    if server_is_running(HEALTH_URL, timeout=0.3):
+        return
+
+    for candidate in range(8000, 8021):
+        candidate_health = f"http://{HOST}:{candidate}/api/health"
+        if server_is_running(candidate_health, timeout=0.2):
+            PORT = candidate
+            BASE_URL = f"http://{HOST}:{PORT}"
+            HEALTH_URL = candidate_health
+            return
+        with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((HOST, candidate))
+                PORT = candidate
+                BASE_URL = f"http://{HOST}:{PORT}"
+                HEALTH_URL = f"{BASE_URL}/api/health"
+                return
+            except OSError:
+                continue
 
 
 class _LogWriter:
@@ -121,8 +147,12 @@ def _install_exception_hooks() -> None:
 def _log_startup_diagnostics() -> None:
     logging.info("Launcher diagnostics begin")
     logging.info(
-        "platform=%s frozen=%s pid=%s cwd=%s",
+        "platform=%s sys_platform=%s machine=%s arch=%s pointer_bits=%s frozen=%s pid=%s cwd=%s",
         os.name,
+        sys.platform,
+        platform.machine(),
+        platform.architecture()[0],
+        struct.calcsize("P") * 8,
         getattr(sys, "frozen", False),
         os.getpid(),
         os.getcwd(),
@@ -148,9 +178,10 @@ def _dump_runtime_snapshot(reason: str) -> None:
         logging.warning("threads=%s", [thread.name for thread in threading.enumerate()])
 
 
-def server_is_running(timeout: float = 0.5) -> bool:
+def server_is_running(url: str | None = None, timeout: float = 0.5) -> bool:
+    target_url = url or HEALTH_URL
     try:
-        with urlopen(HEALTH_URL, timeout=timeout) as response:
+        with urlopen(target_url, timeout=timeout) as response:
             logging.debug("health check status=%s", getattr(response, "status", "unknown"))
             return response.status == 200
     except Exception as exc:
@@ -167,7 +198,7 @@ def _port_accepting_connections(timeout: float = 0.5) -> bool:
 
 
 def wait_for_server(
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = 60.0,
     server_thread: threading.Thread | None = None,
     server: object | None = None,
 ) -> bool:
@@ -205,7 +236,24 @@ def wait_for_server(
 
 def open_interface() -> None:
     logging.info("Opening interface: %s", BASE_URL)
-    webbrowser.open(BASE_URL)
+    opened = False
+    try:
+        opened = bool(webbrowser.open(BASE_URL))
+    except Exception as exc:
+        logging.warning("webbrowser.open failed: %s", exc)
+
+    if not opened and os.name == "nt":
+        try:
+            os.startfile(BASE_URL)
+            opened = True
+        except Exception as exc:
+            logging.warning("os.startfile fallback failed: %s", exc)
+
+    if not opened and os.name == "nt":
+        show_error_dialog(
+            "Программа запущена, но не удалось автоматически открыть браузер.\n\n"
+            f"Пожалуйста, откройте браузер и перейдите по адресу:\n{BASE_URL}"
+        )
 
 
 def show_error_dialog(message: str) -> None:
@@ -314,7 +362,12 @@ def run_windows_tray(server: object, thread: threading.Thread) -> int:
     watcher.start()
 
     open_interface()
-    icon.run()
+    try:
+        icon.run()
+    except Exception as exc:
+        logging.warning("Tray icon run failed: %s, falling back to wait loop", exc)
+        while thread.is_alive():
+            time.sleep(0.5)
     stop_server()
     logging.info("Tray loop finished")
     return 0
@@ -327,7 +380,7 @@ def run_windows_app() -> int:
         return 0
 
     server, thread = run_server_in_thread()
-    if not wait_for_server(timeout_seconds=45.0, server_thread=thread, server=server):
+    if not wait_for_server(timeout_seconds=75.0, server_thread=thread, server=server):
         log_path = _log_path()
         with contextlib.suppress(Exception):
             setattr(server, "should_exit", True)
@@ -349,7 +402,7 @@ def run_dev_mode() -> int:
         return 0
 
     server, thread = run_server_in_thread()
-    if not wait_for_server(timeout_seconds=45.0, server_thread=thread, server=server):
+    if not wait_for_server(timeout_seconds=75.0, server_thread=thread, server=server):
         write_log("Backend did not become healthy in dev mode")
         with contextlib.suppress(Exception):
             setattr(server, "should_exit", True)
@@ -366,13 +419,14 @@ def run_dev_mode() -> int:
 
 
 def main() -> int:
+    _setup_port()
     os.environ["WEBEXE_URL"] = BASE_URL
     _install_file_logging()
     _install_exception_hooks()
     _log_startup_diagnostics()
     write_log(
         f"Launcher started (platform={os.name}, "
-        f"frozen={getattr(sys, 'frozen', False)})"
+        f"frozen={getattr(sys, 'frozen', False)}, port={PORT})"
     )
 
     if os.name == "nt":
